@@ -46,8 +46,3 @@ export function buildWorkflowStates(keywords: string[], isCircular: boolean = tr
 
   return states;
 }
-
-
-
-
-
