@@ -4,13 +4,10 @@ import WorkflowChain from "./WorkflowChain";
 import WorkflowList from "./WorkflowList";
 import WorkflowCreationForm from "./WorkflowCreationForm";
 import { prettyColors } from "../constants";
+import { createLogger } from "../utils/workflowLogger";
 
-// Setup logger with timestamp
-const log = {
-  info: (msg: string, data?: any) => console.log(`[SettingsPage][${new Date().toISOString()}] INFO: ${msg}`, data ? data : ''),
-  error: (msg: string, error?: any) => console.error(`[SettingsPage][${new Date().toISOString()}] ERROR: ${msg}`, error ? error : ''),
-  debug: (msg: string, data?: any) => console.debug(`[SettingsPage][${new Date().toISOString()}] DEBUG: ${msg}`, data ? data : '')
-};
+// Setup logger
+const log = createLogger('SettingsPage');
 
 interface SettingsPageProps {
   WorkflowHeads: WorkflowState[];
@@ -23,6 +20,12 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   onWorkflowStateChange,
   onClose,
 }) => {
+  log.startTimer('settings-page-render');
+  log.info('Rendering SettingsPage', { 
+    workflowCount: WorkflowHeads.length,
+    workflows: WorkflowHeads.map(w => ({ id: w.id, keyword: w.keyword }))
+  });
+
   const [newState, setNewState] = useState<WorkflowState>({
     id: 0,
     keyword: "",
@@ -36,32 +39,193 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
 
   // Update local state whenever WorkflowHeads changes
   useEffect(() => {
-    log.debug('WorkflowHeads updated, syncing local state', { count: WorkflowHeads.length });
-    setWorkflows(WorkflowHeads);
-    // Reset selected workflow if it no longer exists
-    if (selectedWorkflow && !WorkflowHeads.find(w => w.id === selectedWorkflow)) {
-      log.debug('Selected workflow no longer exists, resetting selection');
-      setSelectedWorkflow(null);
+    log.startTimer('sync-workflow-heads');
+    log.debug('WorkflowHeads updated, syncing local state', { 
+      count: WorkflowHeads.length,
+      selectedWorkflow
+    });
+
+    try {
+      setWorkflows(WorkflowHeads);
+      // Reset selected workflow if it no longer exists
+      if (selectedWorkflow && !WorkflowHeads.find(w => w.id === selectedWorkflow)) {
+        log.warn('Selected workflow no longer exists, resetting selection', { selectedWorkflow });
+        setSelectedWorkflow(null);
+      }
+      // Force re-render when workflows change
+      setRenderKey(prev => prev + 1);
+    } catch (error) {
+      log.error('Error syncing workflow heads', error);
+    } finally {
+      log.endTimer('sync-workflow-heads');
     }
-    // Force re-render when workflows change
-    setRenderKey(prev => prev + 1);
   }, [WorkflowHeads]);
 
   // Force layout recalculation on mount
   useEffect(() => {
+    log.startTimer('layout-recalculation');
     log.debug('Settings page mounted, forcing layout recalculation');
-    const forceReflow = () => {
-      const container = document.querySelector('.settings-container');
-      if (container) {
-        container.getBoundingClientRect();
-      }
-    };
-    forceReflow();
     
-    // Add resize handler
-    window.addEventListener('resize', forceReflow);
-    return () => window.removeEventListener('resize', forceReflow);
+    try {
+      const forceReflow = () => {
+        const container = document.querySelector('.settings-container');
+        if (container) {
+          container.getBoundingClientRect();
+        } else {
+          log.warn('Settings container not found for layout recalculation');
+        }
+      };
+      forceReflow();
+      
+      // Add resize handler
+      const handleResize = () => {
+        log.startTimer('handle-resize');
+        forceReflow();
+        log.endTimer('handle-resize');
+      };
+      
+      window.addEventListener('resize', handleResize);
+      return () => window.removeEventListener('resize', handleResize);
+    } finally {
+      log.endTimer('layout-recalculation');
+    }
   }, []);
+
+  const copyWorkflowChain = (workflow: WorkflowState): { head: WorkflowState, last: WorkflowState } => {
+    log.startTimer('copy-workflow-chain');
+    log.debug('Copying workflow chain', { workflowId: workflow.id });
+    
+    try {
+      const statesList: WorkflowState[] = [];
+      const stateMap = new Map<number, number>();
+      const visited = new Set<number>();
+      
+      // First pass: create all states and detect circularity
+      let current: WorkflowState | undefined = workflow;
+      // Start with the workflow's explicit circular property
+      let isCircular = workflow.circular ?? false;
+      
+      while (current && !visited.has(current.id)) {
+        visited.add(current.id);
+        const newState: WorkflowState = {
+          id: current.id,
+          keyword: current.keyword,
+          color: current.color,
+          next: undefined,
+          circular: isCircular
+        };
+        statesList.push(newState);
+        stateMap.set(current.id, statesList.length - 1);
+        
+        // If next points back to head, we've confirmed it's circular
+        // Only update isCircular if it wasn't already set
+        if (!isCircular && current.next?.id === workflow.id) {
+          log.debug('Detected circular workflow', { workflowId: workflow.id });
+          isCircular = true;
+          // Update all previous states to be circular
+          statesList.forEach(state => {
+            state.circular = true;
+          });
+        }
+        current = current.next;
+      }
+
+      // Second pass: connect the states
+      for (let i = 0; i < statesList.length; i++) {
+        let nextState = null;
+        
+        if (i < statesList.length - 1) {
+          // Connect to next state in chain
+          nextState = statesList[i + 1];
+        } else if (isCircular) {
+          // Last state connects back to head if circular
+          nextState = statesList[0];
+        }
+        
+        if (nextState) {
+          statesList[i].next = nextState;
+        }
+      }
+
+      log.debug('Workflow chain copied', { 
+        originalId: workflow.id,
+        stateCount: statesList.length,
+        isCircular
+      });
+
+      return { 
+        head: statesList[0], 
+        last: statesList[statesList.length - 1] 
+      };
+    } catch (error) {
+      log.error('Error copying workflow chain', { error, workflowId: workflow.id });
+      throw error;
+    } finally {
+      log.endTimer('copy-workflow-chain');
+    }
+  };
+
+  const handleCircularChange = (workflowId: number, isCircular: boolean) => {
+    log.startTimer('handle-circular-change');
+    log.debug('Handling circular change', { workflowId, isCircular });
+    
+    try {
+      const workflow = workflows.find(w => w.id === workflowId);
+      if (!workflow) {
+        log.warn('Workflow not found for circular change', { workflowId });
+        return;
+      }
+
+      // Create a deep copy of the workflow chain
+      const { head: workflowHead, last } = copyWorkflowChain(workflow);
+
+      // Preserve checkbox state
+      const preserveCheckbox = (state: WorkflowState) => {
+        state.hasCheckbox = workflow.hasCheckbox;
+        state.checkboxState = workflow.checkboxState;
+        if (state.next && state.next.id !== workflowHead.id) {
+          preserveCheckbox(state.next);
+        }
+      };
+      preserveCheckbox(workflowHead);
+
+      // Update circularity for all states in the chain
+      const updateCircular = (state: WorkflowState) => {
+        state.circular = isCircular;
+        if (state.next && state.next.id !== workflowHead.id) {
+          updateCircular(state.next);
+        }
+      };
+      updateCircular(workflowHead);
+
+      // Update the last state's next pointer
+      if (isCircular) {
+        last.next = workflowHead;
+      } else {
+        last.next = undefined;
+      }
+
+      log.debug('Updated workflow chain', { 
+        workflowId, 
+        isCircular, 
+        head: workflowHead,
+        last
+      });
+
+      // Update the workflow in the local state
+      setWorkflows(prevWorkflows => 
+        prevWorkflows.map(w => 
+          w.id === workflowId ? workflowHead : w
+        )
+      );
+
+      onWorkflowStateChange('update-circular', workflowHead, workflowId);
+    } catch (error) {
+      log.error('Error handling circular change', { error, workflowId, isCircular });
+    } finally {
+      log.endTimer('handle-circular-change');
+    }
+  };
 
   const handleAddStateToWorkflow = (workflowId: number) => {
     if (!newState.keyword.trim()) return;
@@ -90,116 +254,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     log.debug('Added new state to workflow', { workflowId, newState: newStateWithId });
     // Force re-render after adding state
     setRenderKey(prev => prev + 1);
-  };
-
-  // Helper function to safely copy a workflow chain
-  const copyWorkflowChain = (workflow: WorkflowState): { head: WorkflowState, last: WorkflowState } => {
-    const statesList: WorkflowState[] = [];
-    const stateMap = new Map<number, number>();
-    const visited = new Set<number>();
-    
-    // First pass: create all states and detect circularity
-    let current: WorkflowState | undefined = workflow;
-    // Start with the workflow's explicit circular property
-    let isCircular = workflow.circular ?? false;
-    
-    while (current && !visited.has(current.id)) {
-      visited.add(current.id);
-      const newState: WorkflowState = {
-        id: current.id,
-        keyword: current.keyword,
-        color: current.color,
-        next: undefined,
-        circular: isCircular
-      };
-      statesList.push(newState);
-      stateMap.set(current.id, statesList.length - 1);
-      
-      // If next points back to head, we've confirmed it's circular
-      // Only update isCircular if it wasn't already set
-      if (!isCircular && current.next?.id === workflow.id) {
-        isCircular = true;
-        // Update all previous states to be circular
-        statesList.forEach(state => {
-          state.circular = true;
-        });
-      }
-      current = current.next;
-    }
-
-    // Second pass: connect the states
-    for (let i = 0; i < statesList.length; i++) {
-      let nextState = null;
-      
-      if (i < statesList.length - 1) {
-        // Connect to next state in chain
-        nextState = statesList[i + 1];
-      } else if (isCircular) {
-        // Last state connects back to head if circular
-        nextState = statesList[0];
-      }
-      
-      if (nextState) {
-        statesList[i].next = nextState;
-      }
-    }
-
-    return { 
-      head: statesList[0], 
-      last: statesList[statesList.length - 1] 
-    };
-  };
-
-  const handleCircularChange = (workflowId: number, isCircular: boolean) => {
-    const workflow = workflows.find(w => w.id === workflowId);
-    if (!workflow) return;
-
-    log.debug('Handling circular change', { workflowId, isCircular, currentWorkflow: workflow });
-
-    // Create a deep copy of the workflow chain
-    const { head: workflowHead, last } = copyWorkflowChain(workflow);
-
-    // Preserve checkbox state
-    const preserveCheckbox = (state: WorkflowState) => {
-      state.hasCheckbox = workflow.hasCheckbox;
-      state.checkboxState = workflow.checkboxState;
-      if (state.next && state.next.id !== workflowHead.id) {
-        preserveCheckbox(state.next);
-      }
-    };
-    preserveCheckbox(workflowHead);
-
-    // Update circularity for all states in the chain
-    const updateCircular = (state: WorkflowState) => {
-      state.circular = isCircular;
-      if (state.next && state.next.id !== workflowHead.id) {
-        updateCircular(state.next);
-      }
-    };
-    updateCircular(workflowHead);
-
-    // Update the last state's next pointer
-    if (isCircular) {
-      last.next = workflowHead;
-    } else {
-      last.next = undefined;
-    }
-
-    log.debug('Updated workflow chain', { 
-      workflowId, 
-      isCircular, 
-      head: workflowHead,
-      last
-    });
-
-    // Update the workflow in the local state
-    setWorkflows(prevWorkflows => 
-      prevWorkflows.map(w => 
-        w.id === workflowId ? workflowHead : w
-      )
-    );
-
-    onWorkflowStateChange('update-circular', workflowHead, workflowId);
   };
 
   const handleNewStateChange = (state: WorkflowState) => {
@@ -270,6 +324,24 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
 
     onWorkflowStateChange('update-checkbox', workflowHead, workflowId);
   };
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      log.perf('SettingsPage unmounting', {
+        renderDuration: log.endTimer('settings-page-render')
+      });
+    };
+  }, []);
+
+  // Log performance metrics on re-renders
+  useEffect(() => {
+    log.perf('SettingsPage re-rendered', {
+      workflowCount: workflows.length,
+      selectedWorkflow,
+      renderKey
+    });
+  });
 
   return (
     <div key={renderKey} className="settings-container" style={{

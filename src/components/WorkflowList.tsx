@@ -2,13 +2,10 @@ import React, { useState } from "react";
 import { WorkflowState } from "../types";
 import WorkflowChain from "./WorkflowChain";
 import AddStateForm from "./AddStateForm";
+import { createLogger } from "../utils/workflowLogger";
 
-// Setup logger with timestamp
-const log = {
-  info: (msg: string, data?: any) => console.log(`[WorkflowList][${new Date().toISOString()}] INFO: ${msg}`, data ? data : ''),
-  error: (msg: string, error?: any) => console.error(`[WorkflowList][${new Date().toISOString()}] ERROR: ${msg}`, error ? error : ''),
-  debug: (msg: string, data?: any) => console.debug(`[WorkflowList][${new Date().toISOString()}] DEBUG: ${msg}`, data ? data : '')
-};
+// Setup logger
+const log = createLogger('WorkflowList');
 
 interface WorkflowListProps {
   workflows: WorkflowState[];
@@ -39,7 +36,7 @@ const WorkflowList: React.FC<WorkflowListProps> = ({
   onDeleteState,
   prettyColors,
 }) => {
-  log.info('Rendering WorkflowList', { workflowCount: workflows.length });
+  log.debug('Rendering WorkflowList', { workflowCount: workflows.length });
 
   const handleWorkflowSelect = (workflowId: number) => {
     log.debug('Workflow selected', workflowId);
