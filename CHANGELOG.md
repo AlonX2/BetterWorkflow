@@ -1,3 +1,10 @@
+## [1.0.4](https://github.com/AlonX2/BetterWorkflow/compare/v1.0.3...v1.0.4) (2025-01-17)
+
+
+### Bug Fixes
+
+* add missing newline at end of file in main.tsx ([#2](https://github.com/AlonX2/BetterWorkflow/issues/2)) ([a630b5d](https://github.com/AlonX2/BetterWorkflow/commit/a630b5dd8bf0bae0735fd7655b28c5d1f514c9a1))
+
 ## [1.0.3](https://github.com/AlonX2/BetterWorkflow/compare/v1.0.2...v1.0.3) (2025-01-17)
 
 
