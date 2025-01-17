@@ -17,16 +17,9 @@ module.exports = {
     ],
     "@semantic-release/git",
     [
-      "@semantic-release/exec",
-      {
-        prepareCmd:
-          "zip -qq -r logseq-plugin-template-react-${nextRelease.version}.zip dist readme.md logo.svg LICENSE package.json",
-      },
-    ],
-    [
       "@semantic-release/github",
       {
-        assets: "logseq-plugin-template-react-*.zip",
+        assets: "release.zip",
       },
     ],
   ],
