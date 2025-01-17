@@ -6,7 +6,8 @@ import { WorkflowState } from "../types";
 const log = {
   info: (msg: string, data?: any) => console.log(`[WorkflowMacro][${new Date().toISOString()}] INFO: ${msg}`, data ? data : ''),
   error: (msg: string, error?: any) => console.error(`[WorkflowMacro][${new Date().toISOString()}] ERROR: ${msg}`, error ? error : ''),
-  debug: (msg: string, data?: any) => console.debug(`[WorkflowMacro][${new Date().toISOString()}] DEBUG: ${msg}`, data ? data : '')
+  debug: (msg: string, data?: any) => console.debug(`[WorkflowMacro][${new Date().toISOString()}] DEBUG: ${msg}`, data ? data : ''),
+  perf: (msg: string, data?: any) => console.log(`[WorkflowMacro][${new Date().toISOString()}] PERF: ${msg}`, data ? data : '')
 };
 
 // Calculate optimal text color based on background color
@@ -53,37 +54,68 @@ interface WorkflowMacroProps {
 }
 
 export const WorkflowMacro: React.FC<WorkflowMacroProps> = ({ blockId, initWorkflowState, workflowStates }) => {
-  log.info('Initializing WorkflowMacro', { blockId, initWorkflowState });
+  const renderStart = performance.now();
+  log.perf('Starting macro render', { blockId, initWorkflowState });
+  
   const [currentState, setCurrentState] = useState<WorkflowState>(initWorkflowState);
   const [isHovered, setIsHovered] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
+
+  React.useEffect(() => {
+    const renderEnd = performance.now();
+    log.perf('Macro render complete', { 
+      blockId,
+      renderTimeMs: renderEnd - renderStart,
+      stateId: currentState.id,
+      keyword: currentState.keyword
+    });
+  }, []);
 
   // Check if we're in a checkbox state (i.e., this state is a checkbox state)
   const isCheckboxState = currentState.id < 0;
   
   // Find the parent state if we're in a checkbox state
   const findParentState = (): WorkflowState | undefined => {
-    if (!isCheckboxState) return undefined;
-    
-    // Search through all workflow states to find the one that has this as its checkbox state
-    for (const workflow of workflowStates) {
-      let current: WorkflowState | undefined = workflow;
-      const visited = new Set<number>();
+    const searchStart = performance.now();
+    const result = (() => {
+      if (!isCheckboxState) return undefined;
       
-      while (current && !visited.has(current.id)) {
-        if (current.hasCheckbox && current.checkboxState?.id === currentState.id) {
-          return current;
+      // Search through all workflow states to find the one that has this as its checkbox state
+      for (const workflow of workflowStates) {
+        let current: WorkflowState | undefined = workflow;
+        const visited = new Set<number>();
+        
+        while (current && !visited.has(current.id)) {
+          if (current.hasCheckbox && current.checkboxState?.id === currentState.id) {
+            return current;
+          }
+          visited.add(current.id);
+          current = current.next;
         }
-        visited.add(current.id);
-        current = current.next;
       }
-    }
-    return undefined;
+      return undefined;
+    })();
+    
+    const searchEnd = performance.now();
+    log.perf('Parent state search complete', {
+      blockId,
+      searchTimeMs: searchEnd - searchStart,
+      found: !!result,
+      currentStateId: currentState.id
+    });
+    return result;
   };
 
   const parentState = findParentState();
 
   const handleStateChange = async (e: React.MouseEvent) => {
+    const transitionStart = performance.now();
+    log.perf('Starting state transition', {
+      blockId,
+      fromStateId: currentState.id,
+      fromKeyword: currentState.keyword
+    });
+    
     // If clicking the checkbox area and we have a checkbox state defined, transition to it
     const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
     const isCheckboxClick = e.clientX - rect.left < 24; // Check if click is in the first 24px (checkbox area)
@@ -93,10 +125,11 @@ export const WorkflowMacro: React.FC<WorkflowMacroProps> = ({ blockId, initWorkf
       return;
     }
 
-    if (isCheckboxClick) {
-      e.stopPropagation();
-      try {
-        setIsTransitioning(true);
+    let transitionError: Error | undefined;
+    try {
+      setIsTransitioning(true);
+      if (isCheckboxClick) {
+        e.stopPropagation();
         const block = await logseq.Editor.getBlock(blockId);
         if (!block) {
           log.error('Block not found', blockId);
@@ -126,21 +159,13 @@ export const WorkflowMacro: React.FC<WorkflowMacroProps> = ({ blockId, initWorkf
           );
           setCurrentState(currentState.checkboxState);
         }
-      } catch (error) {
-        log.error('Failed to update block content for checkbox state', error);
-      } finally {
-        setIsTransitioning(false);
       }
-      return;
-    }
 
-    if (!currentState.next) {
-      log.debug('No next state available');
-      return;
-    }
+      if (!currentState.next) {
+        log.debug('No next state available');
+        return;
+      }
 
-    try {
-      setIsTransitioning(true);
       log.debug('Handling state change', { 
         currentId: currentState.id, 
         nextId: currentState.next.id,
@@ -175,9 +200,18 @@ export const WorkflowMacro: React.FC<WorkflowMacroProps> = ({ blockId, initWorkf
       );
       setCurrentState(currentState.next);
     } catch (error) {
+      transitionError = error as Error;
       log.error('Failed to update block content', error);
     } finally {
       setIsTransitioning(false);
+      const transitionEnd = performance.now();
+      log.perf('State transition complete', {
+        blockId,
+        transitionTimeMs: transitionEnd - transitionStart,
+        fromStateId: currentState.id,
+        toStateId: currentState.next?.id,
+        success: !transitionError
+      });
     }
   };
 

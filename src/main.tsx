@@ -15,7 +15,8 @@ import settingsIcon from "./assets/IconBW.svg";
 const log = {
   info: (msg: string, data?: any) => console.log(`[Workflow][${new Date().toISOString()}] INFO: ${msg}`, data ? data : ''),
   error: (msg: string, error?: any) => console.error(`[Workflow][${new Date().toISOString()}] ERROR: ${msg}`, error ? error : ''),
-  debug: (msg: string, data?: any) => console.debug(`[Workflow][${new Date().toISOString()}] DEBUG: ${msg}`, data ? data : '')
+  debug: (msg: string, data?: any) => console.debug(`[Workflow][${new Date().toISOString()}] DEBUG: ${msg}`, data ? data : ''),
+  perf: (msg: string, data?: any) => console.log(`[Workflow][${new Date().toISOString()}] PERF: ${msg}`, data ? data : '')
 };
 
 let workflowStates: WorkflowState[] = [...DEFAULT_STATES];
@@ -27,6 +28,44 @@ const renderedMacros: Map<string, {
   rootElement: HTMLElement;
   reactRoot: ReactDOM.Root;
 }> = new Map();
+
+// Add state cache
+const stateCache = new Map<string, WorkflowState>();
+
+// Add color cache
+const colorCache = new Map<string, string>();
+
+function calculateContrastColor(bgColor: string): string {
+  const cacheKey = bgColor;
+  if (colorCache.has(cacheKey)) {
+    return colorCache.get(cacheKey)!;
+  }
+
+  // Convert hex to RGB
+  const hex = bgColor.replace('#', '');
+  const r = parseInt(hex.substr(0, 2), 16);
+  const g = parseInt(hex.substr(2, 2), 16);
+  const b = parseInt(hex.substr(4, 2), 16);
+  
+  // Calculate relative luminance
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  const textColor = luminance > 0.5 ? '#000000' : '#FFFFFF';
+  
+  colorCache.set(cacheKey, textColor);
+  return textColor;
+}
+
+interface WorkflowSearchResult {
+  workflow: WorkflowState;
+  state: WorkflowState;
+}
+
+function isWorkflowSearchResult(value: unknown): value is WorkflowSearchResult {
+  return value !== null && 
+         typeof value === 'object' && 
+         'workflow' in value && 
+         'state' in value;
+}
 
 /**
  * Serializes a workflow state chain into a format that can be safely stored
@@ -101,6 +140,9 @@ function deserializeWorkflow(serialized: any[]): WorkflowState {
 async function updateWorkflowState() {
   log.info('Updating workflow states in settings');
   
+  // Clear the state cache
+  stateCache.clear();
+  
   // Serialize workflows before saving to settings
   const serializedWorkflows = workflowStates.map(serializeWorkflow);
   await logseq.updateSettings({ 
@@ -110,51 +152,144 @@ async function updateWorkflowState() {
   // Force re-render of any open workflow macros
   log.info('Re-rendering open workflow macros');
   const workflowSlots = document.querySelectorAll('[id^="workflow-"]');
-  workflowSlots.forEach(slot => {
-    const id = slot.id;
-    const reactRoot = ReactDOM.createRoot(slot);
-    const blockId = id.replace('workflow-', '');
-    const keyword = slot.getAttribute('data-keyword');
-    if (keyword) {
-      const currentWorkflowState = findWorkflowStateById(workflowStates, parseInt(keyword));
-      if (currentWorkflowState) {
-        log.debug('Re-rendering workflow macro', { blockId, keyword });
-        reactRoot.render(
-          <WorkflowMacro
-            blockId={blockId}
-            initWorkflowState={currentWorkflowState}
-            workflowStates={workflowStates}
-          />
-        );
+  
+  // Process slots in batches to prevent UI blocking
+  const BATCH_SIZE = 10;
+  const slots = Array.from(workflowSlots);
+  
+  const processBatch = (startIdx: number) => {
+    const batchStartTime = performance.now();
+    const endIdx = Math.min(startIdx + BATCH_SIZE, slots.length);
+    
+    for (let i = startIdx; i < endIdx; i++) {
+      const slot = slots[i];
+      const id = slot.id;
+      const reactRoot = ReactDOM.createRoot(slot);
+      const blockId = id.replace('workflow-', '');
+      const keyword = slot.getAttribute('data-keyword');
+      if (keyword) {
+        const stateId = parseInt(slot.getAttribute('data-state-id') || '-999');
+        const currentWorkflowState = findWorkflowStateById(workflowStates, stateId);
+        if (currentWorkflowState) {
+          log.debug('Re-rendering workflow macro', { blockId, keyword });
+          reactRoot.render(
+            <React.StrictMode>
+              <WorkflowMacro
+                key={`${blockId}-${currentWorkflowState.id}`}
+                blockId={blockId}
+                initWorkflowState={currentWorkflowState}
+                workflowStates={workflowStates}
+              />
+            </React.StrictMode>
+          );
+        }
       }
     }
-  });
+
+    const batchEndTime = performance.now();
+    log.perf('Update batch complete', {
+      startIndex: startIdx,
+      endIndex: endIdx - 1,
+      processingTimeMs: batchEndTime - batchStartTime
+    });
+
+    // Process next batch if there are more slots
+    if (endIdx < slots.length) {
+      setTimeout(() => processBatch(endIdx), 0);
+    }
+  };
+
+  // Start processing first batch
+  processBatch(0);
 }
 
 /**
  * Re-renders all workflow macros with the updated state
  */
 function reRenderWorkflowMacros(): void {
+  const renderStart = performance.now();
+  const batchStart = performance.now();
   log.info('Re-rendering all workflow macros');
-  renderedMacros.forEach((macro, id) => {
-    const stateId = parseInt(macro.rootElement.getAttribute('data-state-id') || '-999');
-    if (stateId) {
-      const currentWorkflowState = findWorkflowStateById(workflowStates, stateId);
-      if (currentWorkflowState) {
-        log.debug('Re-rendering workflow macro', { id, stateId, state: currentWorkflowState });
-        const blockId = macro.rootElement.getAttribute('data-block-id');
-        if (blockId) {
-          macro.reactRoot.render(
-            <WorkflowMacro
-              blockId={blockId}
-              initWorkflowState={currentWorkflowState}
-              workflowStates={workflowStates}
-            />
-          );
+  const macroCount = renderedMacros.size;
+  
+  let successCount = 0;
+  let errorCount = 0;
+  let batchCount = 0;
+  const BATCH_SIZE = 10; // Process macros in batches of 10
+  const macroEntries = Array.from(renderedMacros.entries());
+  
+  const processBatch = (startIdx: number) => {
+    const batchStartTime = performance.now();
+    const endIdx = Math.min(startIdx + BATCH_SIZE, macroEntries.length);
+    
+    for (let i = startIdx; i < endIdx; i++) {
+      const [id, macro] = macroEntries[i];
+      const macroRenderStart = performance.now();
+      const stateId = parseInt(macro.rootElement.getAttribute('data-state-id') || '-999');
+      if (stateId) {
+        const currentWorkflowState = findWorkflowStateById(workflowStates, stateId);
+        if (currentWorkflowState) {
+          const blockId = macro.rootElement.getAttribute('data-block-id');
+          if (blockId) {
+            try {
+              const reconcileStart = performance.now();
+              macro.reactRoot.render(
+                <WorkflowMacro
+                  blockId={blockId}
+                  initWorkflowState={currentWorkflowState}
+                  workflowStates={workflowStates}
+                />
+              );
+              const reconcileEnd = performance.now();
+              successCount++;
+              const macroRenderEnd = performance.now();
+              log.perf('Individual macro re-render complete', {
+                id,
+                blockId,
+                stateId,
+                renderTimeMs: macroRenderEnd - macroRenderStart,
+                reconciliationTimeMs: reconcileEnd - reconcileStart,
+                batchNumber: Math.floor(i / BATCH_SIZE) + 1
+              });
+            } catch (error) {
+              errorCount++;
+              log.error('Failed to re-render macro', { id, error });
+            }
+          }
         }
       }
     }
-  });
+
+    const batchEndTime = performance.now();
+    batchCount++;
+    log.perf('Batch processing complete', {
+      batchNumber: batchCount,
+      startIndex: startIdx,
+      endIndex: endIdx - 1,
+      processingTimeMs: batchEndTime - batchStartTime,
+      macrosInBatch: endIdx - startIdx
+    });
+
+    // Process next batch if there are more macros
+    if (endIdx < macroEntries.length) {
+      setTimeout(() => processBatch(endIdx), 0);
+    } else {
+      // All batches complete
+      const renderEnd = performance.now();
+      log.perf('All batches complete', {
+        totalTimeMs: renderEnd - renderStart,
+        totalBatches: batchCount,
+        totalMacros: macroCount,
+        successCount,
+        errorCount,
+        averageTimePerBatchMs: (renderEnd - renderStart) / batchCount,
+        averageTimePerMacroMs: (renderEnd - renderStart) / macroCount
+      });
+    }
+  };
+
+  // Start processing first batch
+  processBatch(0);
 }
 
 /**
@@ -379,67 +514,33 @@ function openSettingsPage(): void {
 }
 
 function findWorkflowStateById(workflowStates: WorkflowState[], id: number): WorkflowState | undefined {
-  log.debug('Searching for workflow state by id', id);
+  const cacheKey = id.toString();
   
-  // First find the workflow head that contains this id
-  let targetWorkflow: WorkflowState | undefined;
-  let targetState: WorkflowState | undefined;
+  const cachedState = stateCache.get(cacheKey);
+  if (cachedState) {
+    return cachedState;
+  }
 
   for (const workflow of workflowStates) {
     let current: WorkflowState | undefined = workflow;
     const visited = new Set<number>();
     
     while (current && !visited.has(current.id)) {
-      // Check the current state's id
       if (current.id === id) {
-        targetWorkflow = workflow;
-        targetState = current;
-        break;
+        stateCache.set(cacheKey, current);
+        return current;
       }
       
-      // Check if this state has a checkbox state with matching id
       if (current.hasCheckbox && current.checkboxState?.id === id) {
-        targetWorkflow = workflow;
-        targetState = current.checkboxState;
-        break;
+        stateCache.set(cacheKey, current.checkboxState);
+        return current.checkboxState;
       }
       
       visited.add(current.id);
       current = current.next;
     }
-    
-    if (targetWorkflow) break;  // Stop searching if we found it
   }
 
-  // If we found both the workflow and the state
-  if (targetWorkflow && targetState) {
-    // If it's a checkbox state, return it directly
-    if (targetState.id < 0) {
-      log.debug('Found checkbox state', targetState);
-      return targetState;
-    }
-    
-    // Otherwise verify the state is still reachable from its workflow head
-    let current: WorkflowState | undefined = targetWorkflow;
-    const visited = new Set<number>();
-    let isReachable = false;
-    
-    while (current && !visited.has(current.id)) {
-      if (current.id === targetState.id) {
-        isReachable = true;
-        break;
-      }
-      visited.add(current.id);
-      current = current.next;
-    }
-    
-    if (isReachable) {
-      log.debug('Found workflow state', targetState);
-      return targetState;
-    }
-  }
-
-  log.debug('No workflow state found for id', id);
   return undefined;
 }
 
@@ -480,26 +581,50 @@ function decodeStateId(encoded: string): number {
   }
 }
 
+// Pre-warm cache for commonly accessed states asynchronously
+async function prewarmStateCache(states: WorkflowState[]): Promise<void> {
+  await Promise.all(states.map(async state => {
+    const visited = new Set<number>();
+    let current: WorkflowState | undefined = state;
+    
+    while (current && !visited.has(current.id)) {
+      stateCache.set(current.id.toString(), current);
+      if (current.checkboxState) {
+        stateCache.set(current.checkboxState.id.toString(), current.checkboxState);
+      }
+      visited.add(current.id);
+      current = current.next;
+    }
+  }));
+}
+
 /**
  * Registers the custom React element renderer for the workflow macro.
  */
 function registerWorkflowMacro(): void {
   log.info('Registering workflow macro renderer');
+  const registeredMacros = new Set<string>();
+
   logseq.App.onMacroRendererSlotted(async ({ slot, payload }) => {
+    const renderStart = performance.now();
     const [type, keyword, encodedId] = payload.arguments;
+    
+    const macroId = `${slot}-${keyword}-${encodedId}`;
+    const isDuplicate = registeredMacros.has(macroId);
+    registeredMacros.add(macroId);
+    
     if (type !== "workflow" || !keyword) {
-      log.debug('Invalid macro type or missing keyword', { type, keyword });
       return;
     }
 
-    // If we have an encoded ID, use it directly, otherwise find by keyword
+    const stateSearchStart = performance.now();
     let targetState: WorkflowState | undefined;
+    
     if (encodedId) {
       const stateId = decodeStateId(encodedId);
       targetState = findWorkflowStateById(workflowStates, stateId);
     }
 
-    // Fallback to keyword search if no ID or state not found
     if (!targetState) {
       for (const workflow of workflowStates) {
         let current: WorkflowState | undefined = workflow;
@@ -524,6 +649,14 @@ function registerWorkflowMacro(): void {
       }
     }
 
+    const stateSearchEnd = performance.now();
+    log.perf('State search complete', {
+      keyword,
+      encodedId,
+      searchTimeMs: stateSearchEnd - stateSearchStart,
+      found: !!targetState
+    });
+
     const block = await logseq.Editor.getBlock(payload.uuid);
     if (!block) {
       log.error('Block not found for macro', payload.uuid);
@@ -532,9 +665,7 @@ function registerWorkflowMacro(): void {
 
     const id = `workflow-${slot}`;
     const encodedStateId = targetState ? encodeStateId(targetState.id) : encodeStateId(-999);
-    log.debug('Setting up workflow macro UI slot', { id, keyword, stateId: targetState?.id, encodedStateId });
 
-    // Provide a UI slot - now storing the encoded state ID
     logseq.provideUI({
       key: id,
       slot,
@@ -542,47 +673,45 @@ function registerWorkflowMacro(): void {
       template: `<div id="${id}" data-state-id="${encodedStateId}" data-keyword="${keyword}" data-block-id="${payload.uuid}"></div>`,
     });
 
-    // Ensure DOM is available
+    // Immediate render after UI is provided
     setTimeout(() => {
       const rootElement = parent.document.getElementById(id);
       if (rootElement) {
         const reactRoot = ReactDOM.createRoot(rootElement);
-        const encodedStateId = rootElement.getAttribute('data-state-id') || encodeStateId(-999);
-        const stateId = decodeStateId(encodedStateId);
-        const currentWorkflowState = findWorkflowStateById(workflowStates, stateId);
+        const currentWorkflowState = targetState || {
+          id: -999,
+          keyword: "✕ Unknown State",
+          color: "#bf3232",
+          next: undefined
+        };
 
-        if (currentWorkflowState) {
-          log.debug('Rendering workflow macro', { id, stateId, encodedStateId, state: currentWorkflowState });
+        try {
+          const reconcileStart = performance.now();
           reactRoot.render(
-            <WorkflowMacro
-              blockId={payload.uuid}
-              initWorkflowState={currentWorkflowState}
-              workflowStates={workflowStates}
-            />
+            <React.StrictMode>
+              <WorkflowMacro
+                blockId={payload.uuid}
+                initWorkflowState={currentWorkflowState}
+                workflowStates={workflowStates}
+              />
+            </React.StrictMode>
           );
-          // Store the macro for later re-rendering
+          const reconcileEnd = performance.now();
+          
           renderedMacros.set(id, { rootElement, reactRoot });
-        } else {
-          log.error("Workflow state not found for id:", stateId);
-          // Create an "Unknown" state with red color
-          const unknownState: WorkflowState = {
-            id: -999,
-            keyword: "✕ Unknown State",
-            color: "#bf3232",
-            next: undefined
-          };
-          reactRoot.render(
-            <WorkflowMacro
-              blockId={payload.uuid}
-              initWorkflowState={unknownState}
-              workflowStates={workflowStates}
-            />
-          );
-          // Store the macro for later re-rendering
-          renderedMacros.set(id, { rootElement, reactRoot });
+          const renderEnd = performance.now();
+          
+          log.perf('Initial macro render complete', {
+            id,
+            blockId: payload.uuid,
+            stateId: currentWorkflowState.id,
+            isDuplicate,
+            totalTimeMs: renderEnd - renderStart,
+            reconciliationTimeMs: reconcileEnd - reconcileStart
+          });
+        } catch (error) {
+          log.error('Failed to render macro', { id, error });
         }
-      } else {
-        log.error("Root element not found for id:", id);
       }
     }, 0);
   });
