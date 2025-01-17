@@ -1,3 +1,10 @@
+## [1.0.3](https://github.com/AlonX2/BetterWorkflow/compare/v1.0.2...v1.0.3) (2025-01-17)
+
+
+### Bug Fixes
+
+* Update and rename release.config.js to release.config.cjs ([019fba5](https://github.com/AlonX2/BetterWorkflow/commit/019fba5643e34155b5c16f607a038a94d212437e))
+
 ## [1.0.2](https://github.com/AlonX2/BetterWorkflow/compare/v1.0.1...v1.0.2) (2025-01-17)
 
 
