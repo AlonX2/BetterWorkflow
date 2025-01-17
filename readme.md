@@ -3,7 +3,7 @@
 
 <h1>BetterWorkflow</h1>
 
-<p><i>A powerful and flexible workflow management plugin for Logseq that allows you to create custom workflow states with visual indicators and builtin querying capabilities.</i></p>
+<p><i>A flexible workflow management plugin for Logseq that allows you to create custom workflow states with a visual workflow editor.</i></p>
 
 <p>
 <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"/></a>
