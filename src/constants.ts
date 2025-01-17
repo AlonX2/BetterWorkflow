@@ -28,38 +28,30 @@ function generateDefaultId(index: number): number {
 
 // Default workflow states
 export const DEFAULT_STATES: WorkflowState[] = [
-  // TODO -> DOING -> DONE
+  // TODO -> DOING -> DONE (checkbox)
   {
     id: generateDefaultId(1),
     keyword: "TODO",
-    color: "#3182CE",
+    color: prettyColors[2], // Deep navy
+    hasCheckbox: true,
+    checkboxState: {
+      id: -1,
+      keyword: "DONE",
+      color: prettyColors[4], // Forest green
+      next: undefined
+    },
     next: {
       id: generateDefaultId(2),
       keyword: "DOING",
-      color: "#DD6B20",
-      next: {
-        id: generateDefaultId(3),
+      color: prettyColors[5], // Saddle brown
+      hasCheckbox: true,
+      checkboxState: {
+        id: -2,
         keyword: "DONE",
-        color: "#38A169",
+        color: prettyColors[4], // Forest green
         next: undefined
-      }
-    }
-  },
-  // NOW -> LATER -> DONE
-  {
-    id: generateDefaultId(4),
-    keyword: "NOW",
-    color: "#805AD5",
-    next: {
-      id: generateDefaultId(5),
-      keyword: "LATER",
-      color: "#718096",
-      next: {
-        id: generateDefaultId(6),
-        keyword: "DONE",
-        color: "#38A169",
-        next: undefined
-      }
+      },
+      next: undefined
     }
   }
 ];
