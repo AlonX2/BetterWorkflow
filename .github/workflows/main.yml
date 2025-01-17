@@ -7,6 +7,10 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-20.04
+    permissions:
+      contents: write      # for pushing tags/releases
+      issues: write        # for creating issues
+      pull-requests: write # for creating pull requests
     steps:
       - name: Checkout
         uses: actions/checkout@v3
