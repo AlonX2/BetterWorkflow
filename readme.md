@@ -1,5 +1,5 @@
 <div align="center">
-<img src="https://github.com/user-attachments/assets/23945a73-8f5e-4c09-b692-59ffeaa62c30" alt="BetterWorkflow"/>
+<img src="https://github.com/user-attachments/assets/8feecdc4-71a1-42b3-8cca-19711996428e" alt="BetterWorkflow"/>
 
 <h1>BetterWorkflow</h1>
 
@@ -44,13 +44,13 @@
 
 <div align="center">
 <h3>Visual Workflow Editor</h3>
-<img src="https://github.com/user-attachments/assets/dce068b4-d0b9-4bc0-861c-4147593f9464" alt="Visual Workflow Editor" width="800"/>
+<img src="https://github.com/user-attachments/assets/7c7d660d-2071-4657-b7ac-bba13b211919" alt="Visual Workflow Editor" width="800"/>
 
 <h3>Workflow States in Action</h3>
-<img src="https://github.com/user-attachments/assets/9de68537-c4b1-4f63-a966-44a0746642a6" alt="Workflow States" width="800"/>
+<img src="https://github.com/user-attachments/assets/212b6c14-5626-4c27-bc01-f3e2bc629a29" alt="Workflow States" width="800"/>
 
 <h3>Query Builder</h3>
-<img src="https://github.com/user-attachments/assets/09e65c75-d174-4c73-9178-ba2417e81500" alt="Query Builder" width="800"/>
+<img src="https://github.com/user-attachments/assets/c695013a-3a93-49ea-8041-109cf0698690" alt="Query Builder" width="800"/>
 </div>
 
 <h2>📖 Usage Guide</h2>
