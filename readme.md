@@ -1,5 +1,5 @@
 <div align="center">
-<img src="https://github.com/user-attachments/assets/23945a73-8f5e-4c09-b692-59ffeaa62c30" alt="BetterWorkflow"/>
+<img src="https://github.com/user-attachments/assets/8feecdc4-71a1-42b3-8cca-19711996428e" alt="BetterWorkflow"/>
 
 <h1>BetterWorkflow</h1>
 
