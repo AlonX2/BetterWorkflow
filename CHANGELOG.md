@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.0.0] - 2024-01-17
+## 1.0.0
 
 ### Features
 - Custom workflow states with visual indicators and color coding
