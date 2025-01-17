@@ -1,3 +1,10 @@
+## [1.0.2](https://github.com/AlonX2/BetterWorkflow/compare/v1.0.1...v1.0.2) (2025-01-17)
+
+
+### Bug Fixes
+
+* release workflow ([2e0e9fa](https://github.com/AlonX2/BetterWorkflow/commit/2e0e9fa1bf264de92c7e30b9294ab1c3a11327f3))
+
 ## [1.0.1](https://github.com/AlonX2/BetterWorkflow/compare/v1.0.0...v1.0.1) (2025-01-17)
 
 
