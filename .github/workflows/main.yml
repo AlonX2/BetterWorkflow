@@ -11,6 +11,12 @@ jobs:
       contents: write      # for pushing tags/releases
       issues: write        # for creating issues
       pull-requests: write # for creating pull requests
+      packages: write      # for publishing packages
+      discussions: write   # for creating/updating discussions
+      actions: write       # for managing workflow runs
+      statuses: write      # for creating commit statuses
+      checks: write        # for creating check runs
+      deployments: write   # for creating deployments
     steps:
       - name: Checkout
         uses: actions/checkout@v3
