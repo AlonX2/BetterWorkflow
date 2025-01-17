@@ -35,7 +35,7 @@ export const DEFAULT_STATES: WorkflowState[] = [
     color: prettyColors[2], // Deep navy
     hasCheckbox: true,
     checkboxState: {
-      id: -1,
+      id: -2,
       keyword: "DONE",
       color: prettyColors[4], // Forest green
       next: undefined
