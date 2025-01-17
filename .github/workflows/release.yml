@@ -6,6 +6,8 @@ env:
   NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
 on:
+  release:
+    types: [created]
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
