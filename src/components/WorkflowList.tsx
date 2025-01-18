@@ -36,7 +36,7 @@ const WorkflowList: React.FC<WorkflowListProps> = ({
   onDeleteState,
   prettyColors,
 }) => {
-  log.debug('Rendering WorkflowList', { workflowCount: workflows.length });
+  log.info('Rendering WorkflowList', { workflowCount: workflows.length });
 
   const handleWorkflowSelect = (workflowId: number) => {
     log.debug('Workflow selected', workflowId);

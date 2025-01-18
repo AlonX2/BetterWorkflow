@@ -96,7 +96,7 @@ function deserializeWorkflow(serialized: any[]): WorkflowState {
  * Updates settings and re-registers slash commands
  */
 async function updateWorkflowState() {
-  log.debug('Updating workflow states in settings');
+  log.info('Updating workflow states in settings');
   
   // Serialize workflows before saving to settings
   const serializedWorkflows = workflowStates.map(serializeWorkflow);
@@ -105,7 +105,7 @@ async function updateWorkflowState() {
   });
   
   // Force re-render of any open workflow macros
-  log.debug('Re-rendering open workflow macros');
+  log.info('Re-rendering open workflow macros');
   const workflowSlots = document.querySelectorAll('[id^="workflow-"]');
   workflowSlots.forEach(slot => {
     const id = slot.id;
@@ -536,7 +536,7 @@ function decodeStateId(encoded: string): number {
  */
 function registerWorkflowMacro(): void {
   log.startTimer('register-workflow-macro');
-  log.debug('Registering workflow macro renderer');
+  log.info('Registering workflow macro renderer');
   
   try {
     logseq.App.onMacroRendererSlotted(async ({ slot, payload }) => {
@@ -785,7 +785,7 @@ async function registerSlashCommands(): Promise<void> {
  */
 async function loadWorkflows(): Promise<void> {
   log.startTimer('load-workflows');
-  log.debug('Loading workflows from settings');
+  log.info('Loading workflows from settings');
   
   try {
     const serializedWorkflows = logseq.settings?.serializedWorkflows;
@@ -838,7 +838,7 @@ const main = async () => {
     return;
   }
   
-  log.debug('Initializing workflow plugin', { 
+  log.info('Initializing workflow plugin', { 
     version: process.env.VERSION || 'unknown',
     environment: process.env.NODE_ENV
   });
@@ -873,7 +873,7 @@ const main = async () => {
       }
     });
 
-    log.debug("Workflow plugin loaded successfully!");
+    log.info("Workflow plugin loaded successfully!");
     logseq.UI.showMsg("Workflow plugin loaded successfully!");
     
   } catch (error) {

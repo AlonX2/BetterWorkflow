@@ -40,7 +40,7 @@ const WorkflowChain: React.FC<WorkflowChainProps> = ({
   };
 
   log.startTimer('workflow-chain-render');
-  log.debug('Rendering WorkflowChain', { 
+  log.info('Rendering WorkflowChain', { 
     workflowId: workflow.id, 
     circular: workflow.circular, 
     hasCheckbox: workflow.hasCheckbox,
