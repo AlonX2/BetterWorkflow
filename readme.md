@@ -1,13 +1,14 @@
 <style>
   body {
     background-color: #1a1a1a !important;
-    color: #e6e6e6 !important;
+    color: #ffffff !important;
   }
   img {
     background-color: transparent !important;
   }
   div {
     background-color: #1a1a1a !important;
+    color: #ffffff !important;
   }
   table {
     background-color: #1a1a1a !important;
@@ -22,6 +23,19 @@
     background-color: #2d2d2d !important;
     padding: 2px 4px !important;
     border-radius: 4px !important;
+  }
+  h1, h2, h3 {
+    color: #ffffff !important;
+  }
+  p, li {
+    color: #e6e6e6 !important;
+  }
+  strong {
+    color: #ffffff !important;
+    font-weight: 600 !important;
+  }
+  i {
+    color: #d1d1d1 !important;
   }
 </style>
 
