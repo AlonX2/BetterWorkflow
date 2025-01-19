@@ -1,3 +1,10 @@
+## [1.0.5](https://github.com/AlonX2/BetterWorkflow/compare/v1.0.4...v1.0.5) (2025-01-19)
+
+
+### Bug Fixes
+
+* More logs and log level control. ([#3](https://github.com/AlonX2/BetterWorkflow/issues/3)) ([a173559](https://github.com/AlonX2/BetterWorkflow/commit/a1735596522e5c9632d74992bd4e6b4327ebe72e))
+
 ## [1.0.4](https://github.com/AlonX2/BetterWorkflow/compare/v1.0.3...v1.0.4) (2025-01-17)
 
 
