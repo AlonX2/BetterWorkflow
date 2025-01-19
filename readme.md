@@ -1,4 +1,31 @@
-<div align="center">
+<style>
+  body {
+    background-color: #1a1a1a !important;
+    color: #e6e6e6 !important;
+  }
+  img {
+    background-color: transparent !important;
+  }
+  div {
+    background-color: #1a1a1a !important;
+  }
+  table {
+    background-color: #1a1a1a !important;
+  }
+  td {
+    background-color: #1a1a1a !important;
+  }
+  a {
+    color: #3b82f6 !important;
+  }
+  code {
+    background-color: #2d2d2d !important;
+    padding: 2px 4px !important;
+    border-radius: 4px !important;
+  }
+</style>
+
+<div align="center" style="background-color: #1a1a1a;">
 <img src="https://github.com/user-attachments/assets/8feecdc4-71a1-42b3-8cca-19711996428e" alt="BetterWorkflow"/>
 
 <h1>BetterWorkflow</h1>
@@ -87,4 +114,3 @@
 <li>Add an optional title for your query</li>
 <li>Insert the generated query</li>
 </ol>
-test
