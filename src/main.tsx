@@ -874,8 +874,6 @@ const main = async () => {
     });
 
     log.info("Workflow plugin loaded successfully!");
-    logseq.UI.showMsg("Workflow plugin loaded successfully!");
-    
   } catch (error) {
     log.error("Error during plugin initialization", { 
       error,
