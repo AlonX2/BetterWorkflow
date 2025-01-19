@@ -1,46 +1,9 @@
-<style>
-  body {
-    background-color: #1a1a1a !important;
-    color: #ffffff !important;
-  }
-  img {
-    background-color: transparent !important;
-  }
-  div {
-    background-color: #1a1a1a !important;
-    color: #ffffff !important;
-  }
-  table {
-    background-color: #1a1a1a !important;
-  }
-  td {
-    background-color: #1a1a1a !important;
-  }
-  a {
-    color: #3b82f6 !important;
-  }
-  code {
-    background-color: #2d2d2d !important;
-    padding: 2px 4px !important;
-    border-radius: 4px !important;
-  }
-  h1, h2, h3 {
-    color: #ffffff !important;
-  }
-  p, li {
-    color: #e6e6e6 !important;
-  }
-  strong {
-    color: #ffffff !important;
-    font-weight: 600 !important;
-  }
-  i {
-    color: #d1d1d1 !important;
-  }
-</style>
-
-<div align="center" style="background-color: #1a1a1a;">
-<img src="https://github.com/user-attachments/assets/8feecdc4-71a1-42b3-8cca-19711996428e" alt="BetterWorkflow"/>
+<div align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/8feecdc4-71a1-42b3-8cca-19711996428e"/>
+  <source media="(prefers-color-scheme: light)" srcset="https://github.com/user-attachments/assets/8feecdc4-71a1-42b3-8cca-19711996428e"/>
+  <img alt="BetterWorkflow" src="https://github.com/user-attachments/assets/8feecdc4-71a1-42b3-8cca-19711996428e"/>
+</picture>
 
 <h1>BetterWorkflow</h1>
 
