@@ -1,3 +1,10 @@
+## [1.0.6](https://github.com/AlonX2/BetterWorkflow/compare/v1.0.5...v1.0.6) (2025-01-19)
+
+
+### Bug Fixes
+
+* Removed message that popped up every time logseq opened. ([6c625fb](https://github.com/AlonX2/BetterWorkflow/commit/6c625fbe73f124c61fdf6eae41f93a6603845656))
+
 ## [1.0.5](https://github.com/AlonX2/BetterWorkflow/compare/v1.0.4...v1.0.5) (2025-01-19)
 
 
