@@ -1,14 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { WorkflowState } from "../types";
 import CircularFlowButton from "./workflow/CircularFlowButton";
 import CheckboxButton from "./workflow/CheckboxButton";
+import { createLogger } from "../utils/workflowLogger";
 
-// Setup logger with timestamp
-const log = {
-  info: (msg: string, data?: any) => console.log(`[WorkflowChain][${new Date().toISOString()}] INFO: ${msg}`, data ? data : ''),
-  error: (msg: string, error?: any) => console.error(`[WorkflowChain][${new Date().toISOString()}] ERROR: ${msg}`, error ? error : ''),
-  debug: (msg: string, data?: any) => console.debug(`[WorkflowChain][${new Date().toISOString()}] DEBUG: ${msg}`, data ? data : '')
-};
+// Setup logger
+const log = createLogger('WorkflowChain');
 
 interface WorkflowChainProps {
   workflow: WorkflowState;
@@ -27,7 +24,28 @@ const WorkflowChain: React.FC<WorkflowChainProps> = ({
   onColorChange,
   prettyColors 
 }) => {
-  log.info('Rendering WorkflowChain', { workflowId: workflow.id, circular: workflow.circular, hasCheckbox: workflow.hasCheckbox });
+  // Helper function to count states in workflow
+  const countWorkflowStates = (state: WorkflowState): number => {
+    let count = 1;
+    let current = state.next;
+    const visited = new Set<number>([state.id]);
+    
+    while (current && !visited.has(current.id)) {
+      count++;
+      visited.add(current.id);
+      current = current.next;
+    }
+    
+    return count;
+  };
+
+  log.startTimer('workflow-chain-render');
+  log.info('Rendering WorkflowChain', { 
+    workflowId: workflow.id, 
+    circular: workflow.circular, 
+    hasCheckbox: workflow.hasCheckbox,
+    stateCount: countWorkflowStates(workflow)
+  });
   
   const [hoveredStateId, setHoveredStateId] = useState<number | null>(null);
   const [colorPickerState, setColorPickerState] = useState<number | null>(null);
@@ -36,29 +54,64 @@ const WorkflowChain: React.FC<WorkflowChainProps> = ({
   const [checkboxStateName, setCheckboxStateName] = useState("");
 
   const handleCircularChange = (newValue: boolean) => {
-    log.debug('Circular state changed', { newValue, workflowId: workflow.id });
-    onCircularChange?.(newValue);
+    log.startTimer('handle-circular-change');
+    log.debug('Circular state change requested', { 
+      workflowId: workflow.id,
+      currentValue: workflow.circular,
+      newValue
+    });
+    
+    try {
+      onCircularChange?.(newValue);
+    } catch (error) {
+      log.error('Error handling circular change', { error, newValue });
+    } finally {
+      log.endTimer('handle-circular-change');
+    }
   };
 
   const handleCheckboxChange = (newValue: boolean) => {
-    if (newValue) {
-      setShowCheckboxModal(true);
-    } else {
-      log.debug('Checkbox state changed', { newValue, workflowId: workflow.id });
-      onCheckboxChange?.(false);
+    log.startTimer('handle-checkbox-change');
+    log.debug('Checkbox state change requested', {
+      workflowId: workflow.id,
+      currentValue: workflow.hasCheckbox,
+      newValue
+    });
+    
+    try {
+      if (newValue) {
+        setShowCheckboxModal(true);
+      } else {
+        onCheckboxChange?.(false);
+      }
+    } catch (error) {
+      log.error('Error handling checkbox change', { error, newValue });
+    } finally {
+      log.endTimer('handle-checkbox-change');
     }
   };
 
   const handleCheckboxSubmit = () => {
-    log.debug('Checkbox state changed with name', { name: checkboxStateName, workflowId: workflow.id });
-    // Create a new checkbox state with a unique negative ID
-    const checkboxState: WorkflowState = {
-      id: -Date.now(), // Use negative timestamp to ensure uniqueness
-      keyword: checkboxStateName,
-      color: workflow.color, // Start with the same color as the workflow
-    };
-    onCheckboxChange?.(true, checkboxState);
-    setShowCheckboxModal(false);
+    log.startTimer('handle-checkbox-submit');
+    log.debug('Checkbox state submission', {
+      workflowId: workflow.id,
+      checkboxStateName
+    });
+    
+    try {
+      // Create a new checkbox state with a unique negative ID
+      const checkboxState: WorkflowState = {
+        id: -Date.now(), // Use negative timestamp to ensure uniqueness
+        keyword: checkboxStateName,
+        color: workflow.color, // Start with the same color as the workflow
+      };
+      onCheckboxChange?.(true, checkboxState);
+      setShowCheckboxModal(false);
+    } catch (error) {
+      log.error('Error handling checkbox submit', { error, checkboxStateName });
+    } finally {
+      log.endTimer('handle-checkbox-submit');
+    }
   };
 
   const handleColorChange = (state: WorkflowState, color: string) => {
@@ -119,6 +172,34 @@ const WorkflowChain: React.FC<WorkflowChainProps> = ({
   };
 
   const chain = getWorkflowChain(workflow);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      const duration = log.endTimer('workflow-chain-render');
+      if (duration > 0) { // Only log if timer was active (meaning perf level is enabled)
+        log.perf('WorkflowChain unmounting', {
+          workflowId: workflow.id,
+          renderDuration: duration
+        });
+      }
+    };
+  }, []);
+
+  // Log performance metrics on re-renders
+  useEffect(() => {
+    const duration = log.endTimer('workflow-chain-render');
+    if (duration > 0) { // Only log if timer was active (meaning perf level is enabled)
+      log.perf('WorkflowChain re-rendered', {
+        workflowId: workflow.id,
+        stateCount: countWorkflowStates(workflow),
+        hasHoveredState: hoveredStateId !== null,
+        hasColorPicker: colorPickerState !== null,
+        showingCheckboxModal: showCheckboxModal
+      });
+    }
+    log.startTimer('workflow-chain-render');
+  });
 
   return (
     <div>

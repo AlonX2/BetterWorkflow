@@ -1,13 +1,10 @@
 import React, { useState } from "react";
 import "@logseq/libs";
 import { WorkflowState } from "../types";
+import { createLogger } from "../utils/workflowLogger";
 
-// Setup logger with timestamp
-const log = {
-  info: (msg: string, data?: any) => console.log(`[WorkflowMacro][${new Date().toISOString()}] INFO: ${msg}`, data ? data : ''),
-  error: (msg: string, error?: any) => console.error(`[WorkflowMacro][${new Date().toISOString()}] ERROR: ${msg}`, error ? error : ''),
-  debug: (msg: string, data?: any) => console.debug(`[WorkflowMacro][${new Date().toISOString()}] DEBUG: ${msg}`, data ? data : '')
-};
+// Setup logger
+const log = createLogger('WorkflowMacro');
 
 // Calculate optimal text color based on background color
 function getContrastTextColor(hexColor: string): string {
@@ -53,7 +50,7 @@ interface WorkflowMacroProps {
 }
 
 export const WorkflowMacro: React.FC<WorkflowMacroProps> = ({ blockId, initWorkflowState, workflowStates }) => {
-  log.info('Initializing WorkflowMacro', { blockId, initWorkflowState });
+  log.debug('Initializing WorkflowMacro', { blockId, initWorkflowState });
   const [currentState, setCurrentState] = useState<WorkflowState>(initWorkflowState);
   const [isHovered, setIsHovered] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);

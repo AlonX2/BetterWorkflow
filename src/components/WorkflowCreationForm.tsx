@@ -1,12 +1,9 @@
 import React, { useState } from "react";
 import { WorkflowState } from "../types";
+import { createLogger } from "../utils/workflowLogger";
 
-// Setup logger with timestamp
-const log = {
-  info: (msg: string, data?: any) => console.log(`[WorkflowCreationForm][${new Date().toISOString()}] INFO: ${msg}`, data ? data : ''),
-  error: (msg: string, error?: any) => console.error(`[WorkflowCreationForm][${new Date().toISOString()}] ERROR: ${msg}`, error ? error : ''),
-  debug: (msg: string, data?: any) => console.debug(`[WorkflowCreationForm][${new Date().toISOString()}] DEBUG: ${msg}`, data ? data : '')
-};
+// Setup logger
+const log = createLogger('WorkflowCreationForm');
 
 interface WorkflowCreationFormProps {
   onAddWorkflow: (workflow: WorkflowState) => void;
