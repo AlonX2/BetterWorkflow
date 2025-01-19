@@ -21,6 +21,7 @@ const log = {
 let workflowStates: WorkflowState[] = [...DEFAULT_STATES];
 let isInitialized = false;
 let idCounter = 0;
+let currentGraphName: string | null = null;
 
 // Keep track of rendered workflow macros
 const renderedMacros: Map<string, {
@@ -101,10 +102,22 @@ function deserializeWorkflow(serialized: any[]): WorkflowState {
 async function updateWorkflowState() {
   log.info('Updating workflow states in settings');
   
-  // Serialize workflows before saving to settings
+  const graph = await logseq.App.getCurrentGraph();
+  if (!graph?.name) {
+    log.error('No current graph name available');
+    return;
+  }
+
+  // Get existing workflows for all graphs
+  const allGraphWorkflows = logseq.settings?.graphWorkflows || {};
+  
+  // Update workflows for current graph using graph name as key
   const serializedWorkflows = workflowStates.map(serializeWorkflow);
   await logseq.updateSettings({ 
-    serializedWorkflows
+    graphWorkflows: {
+      ...allGraphWorkflows,
+      [graph.name]: serializedWorkflows
+    }
   });
   
   // Force re-render of any open workflow macros
@@ -326,33 +339,6 @@ async function handleWorkflowStateChange(action: 'add-head' | 'add-extension' | 
 }
 
 /**
- * Forces a re-render of the settings page
- */
-function reopenSettingsPage(): void {
-  log.info('Forcing settings page re-render');
-  const rootElement = document.getElementById('app');
-  if (rootElement) {
-    const reactRoot = ReactDOM.createRoot(rootElement);
-    // Force re-render by using a key that changes
-    reactRoot.render(
-      <SettingsPage
-        key={Date.now()} // Force re-mount on each reopen
-        WorkflowHeads={workflowStates}
-        onWorkflowStateChange={handleWorkflowStateChange}
-        onClose={async () => {
-          log.info('Closing settings page');
-          // Ensure settings are saved before closing
-          await updateWorkflowState();
-          logseq.hideMainUI();
-        }}
-      />
-    );
-  } else {
-    log.error("Plugin root element not found");
-  }
-}
-
-/**
  * Opens the settings page in a floating modal.
  */
 function openSettingsPage(): void {
@@ -360,19 +346,54 @@ function openSettingsPage(): void {
   const rootElement = document.getElementById('app');
   if (rootElement) {
     const reactRoot = ReactDOM.createRoot(rootElement);
-    reactRoot.render(
-      <SettingsPage
-        key={Date.now()} // Force re-mount on initial open
-        WorkflowHeads={workflowStates}
-        onWorkflowStateChange={handleWorkflowStateChange}
-        onClose={async () => {
-          log.info('Closing settings page');
-          // Ensure settings are saved before closing
-          await updateWorkflowState();
-          logseq.hideMainUI();
-        }}
-      />
-    );
+    // Get current graph name
+    logseq.App.getCurrentGraph().then(graph => {
+      reactRoot.render(
+        <SettingsPage
+          key={Date.now()} // Force re-mount on initial open
+          WorkflowHeads={workflowStates}
+          onWorkflowStateChange={handleWorkflowStateChange}
+          onClose={async () => {
+            log.info('Closing settings page');
+            // Ensure settings are saved before closing
+            await updateWorkflowState();
+            logseq.hideMainUI();
+          }}
+          currentGraphName={graph?.name || 'Unknown Graph'}
+        />
+      );
+    });
+  } else {
+    log.error("Plugin root element not found");
+  }
+}
+
+/**
+ * Forces a re-render of the settings page
+ */
+function reopenSettingsPage(): void {
+  log.info('Forcing settings page re-render');
+  const rootElement = document.getElementById('app');
+  if (rootElement) {
+    const reactRoot = ReactDOM.createRoot(rootElement);
+    // Get current graph name
+    logseq.App.getCurrentGraph().then(graph => {
+      // Force re-render by using a key that changes
+      reactRoot.render(
+        <SettingsPage
+          key={Date.now()} // Force re-mount on each reopen
+          WorkflowHeads={workflowStates}
+          onWorkflowStateChange={handleWorkflowStateChange}
+          onClose={async () => {
+            log.info('Closing settings page');
+            // Ensure settings are saved before closing
+            await updateWorkflowState();
+            logseq.hideMainUI();
+          }}
+          currentGraphName={graph?.name || 'Unknown Graph'}
+        />
+      );
+    });
   } else {
     log.error("Plugin root element not found");
   }
@@ -612,6 +633,37 @@ function openWorkflowQuery(): void {
 }
 
 /**
+ * Cleans up the current workflow state
+ */
+async function cleanupCurrentWorkflow(): Promise<void> {
+  log.info('Cleaning up current workflow state');
+  
+  // Clear all rendered macros and unmount their React roots
+  renderedMacros.forEach((macro) => {
+    try {
+      macro.reactRoot.unmount();
+    } catch (error) {
+      log.error('Error unmounting React root', error);
+    }
+  });
+  renderedMacros.clear();
+  
+  // Remove all workflow macro elements from the DOM
+  const workflowSlots = parent.document.querySelectorAll('[id^="workflow-"]');
+  workflowSlots.forEach(slot => {
+    try {
+      slot.remove();
+    } catch (error) {
+      log.error('Error removing workflow slot', error);
+    }
+  });
+
+  // Instead of unregistering commands, we'll just clear our state
+  // The commands will be overwritten when we register new ones
+  workflowStates = [];
+}
+
+/**
  * Registers slash commands for inserting workflow macros.
  */
 async function registerSlashCommands(): Promise<void> {
@@ -652,19 +704,43 @@ async function registerSlashCommands(): Promise<void> {
  */
 async function loadWorkflows(): Promise<void> {
   log.info('Loading workflows from settings');
-  const serializedWorkflows = logseq.settings?.serializedWorkflows;
+
+  // Get current graph
+  const graph = await logseq.App.getCurrentGraph();
+  const newGraphName = graph?.name || null;
+
+  // If switching graphs, ensure complete cleanup
+  if (currentGraphName !== newGraphName) {
+    await cleanupCurrentWorkflow();
+  }
+
+  currentGraphName = newGraphName;
+
+  if (!currentGraphName) {
+    log.error('No current graph name available');
+    return;
+  }
+
+  log.debug('Current graph name:', currentGraphName);
+
+  // Get workflows for all graphs
+  const allGraphWorkflows = logseq.settings?.graphWorkflows || {};
+  const serializedWorkflows = allGraphWorkflows[currentGraphName];
+
   if (Array.isArray(serializedWorkflows)) {
-    log.debug('Found existing workflow states in settings', serializedWorkflows);
+    log.debug('Found existing workflow states for current graph', serializedWorkflows);
     workflowStates = serializedWorkflows.map(deserializeWorkflow);
   } else {
-    log.debug('No existing workflow states found, using defaults', DEFAULT_STATES);
+    log.debug('No existing workflow states found for current graph, using defaults', DEFAULT_STATES);
     workflowStates = [...DEFAULT_STATES];
     const serializedDefaults = workflowStates.map(serializeWorkflow);
     await logseq.updateSettings({
-      serializedWorkflows: serializedDefaults
+      graphWorkflows: {
+        ...allGraphWorkflows,
+        [currentGraphName]: serializedDefaults
+      }
     });
   }
-  await updateWorkflowState();
 }
 
 /**
@@ -679,9 +755,17 @@ const main = async () => {
   isInitialized = true;
 
   try {
+    // Listen for graph changes
+    logseq.App.onCurrentGraphChanged(async () => {
+      log.info('Graph changed, switching workflow context');
+      await cleanupCurrentWorkflow();
+      await loadWorkflows();
+      await registerSlashCommands(); // Re-register slash commands for new graph
+    });
+
     await loadWorkflows();
     registerWorkflowMacro();
-    registerSlashCommands(); // Register slash commands on initialization
+    await registerSlashCommands(); // Register slash commands on initialization
 
     // Simplified toolbar button
     log.debug('Registering toolbar button');

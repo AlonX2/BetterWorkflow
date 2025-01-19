@@ -16,12 +16,14 @@ interface SettingsPageProps {
   WorkflowHeads: WorkflowState[];
   onWorkflowStateChange: (action: 'add-head' | 'add-extension' | 'update-circular' | 'delete-workflow' | 'delete-state' | 'update-state' | 'update-checkbox', state: WorkflowState, parentId?: number) => void;
   onClose: () => void;
+  currentGraphName: string;
 }
 
 const SettingsPage: React.FC<SettingsPageProps> = ({
   WorkflowHeads,
   onWorkflowStateChange,
   onClose,
+  currentGraphName,
 }) => {
   const [newState, setNewState] = useState<WorkflowState>({
     id: 0,
@@ -332,7 +334,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
       </style>
       <div style={{
         display: "flex",
-        alignItems: "center",
+        flexDirection: "column",
+        alignItems: "flex-start",
         marginBottom: "16px",
         paddingRight: "40px",
       }}>
@@ -343,6 +346,11 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
           color: "#FFFFFF",
           letterSpacing: "-0.01em",
         }}>Workflow Settings</h2>
+        <span style={{
+          fontSize: "12px",
+          color: "#999",
+          marginTop: "4px",
+        }}>(For the {currentGraphName} graph)</span>
       </div>
       <button 
         onClick={async (e) => {
