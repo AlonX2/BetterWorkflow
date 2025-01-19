@@ -1,9 +1,5 @@
 <div align="center">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/8feecdc4-71a1-42b3-8cca-19711996428e"/>
-  <source media="(prefers-color-scheme: light)" srcset="https://github.com/user-attachments/assets/8feecdc4-71a1-42b3-8cca-19711996428e"/>
-  <img alt="BetterWorkflow" src="https://github.com/user-attachments/assets/8feecdc4-71a1-42b3-8cca-19711996428e"/>
-</picture>
+<img src="https://github.com/user-attachments/assets/8feecdc4-71a1-42b3-8cca-19711996428e" alt="BetterWorkflow" style="mix-blend-mode: multiply; background: transparent;"/>
 
 <h1>BetterWorkflow</h1>
 
