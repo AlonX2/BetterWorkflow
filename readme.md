@@ -1,3 +1,4 @@
+<div style="background-color: #1a1a1a;">
 <div align="center">
 <img src="https://github.com/user-attachments/assets/8feecdc4-71a1-42b3-8cca-19711996428e" alt="BetterWorkflow" style="mix-blend-mode: multiply; background: transparent;"/>
 
@@ -87,3 +88,4 @@
 <li>Add an optional title for your query</li>
 <li>Insert the generated query</li>
 </ol>
+</div>
