@@ -1,3 +1,11 @@
+## [1.0.7](https://github.com/AlonX2/BetterWorkflow/compare/v1.0.6...v1.0.7) (2025-01-21)
+
+
+### Bug Fixes
+
+* Inserting macros not in the start of the block is now supported. Multiple macros in the same block are also supported. ([4daede2](https://github.com/AlonX2/BetterWorkflow/commit/4daede2c4cf3afe827e89964613a83f183e364ab))
+* Update keyword from "TODO" to "TASK" in DEFAULT_STATES ([6e6871b](https://github.com/AlonX2/BetterWorkflow/commit/6e6871b3e968abff65bece8ed853951ce5a37215))
+
 ## [1.0.6](https://github.com/AlonX2/BetterWorkflow/compare/v1.0.5...v1.0.6) (2025-01-19)
 
 
