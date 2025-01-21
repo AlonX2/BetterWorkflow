@@ -112,13 +112,15 @@ async function updateWorkflowState() {
     const reactRoot = ReactDOM.createRoot(slot);
     const blockId = id.replace('workflow-', '');
     const keyword = slot.getAttribute('data-keyword');
+    const macroId = slot.getAttribute('data-macro-id');
     if (keyword) {
       const currentWorkflowState = findWorkflowStateById(workflowStates, parseInt(keyword));
       if (currentWorkflowState) {
-        log.debug('Re-rendering workflow macro', { blockId, keyword });
+        log.debug('Re-rendering workflow macro', { blockId, keyword, macroId });
         reactRoot.render(
           <WorkflowMacro
             blockId={blockId}
+            macroId={macroId}
             initWorkflowState={currentWorkflowState}
             workflowStates={workflowStates}
           />
@@ -144,11 +146,13 @@ function reRenderWorkflowMacros(): void {
       try {
         const stateId = parseInt(macro.rootElement.getAttribute('data-state-id') || '-999');
         const blockId = macro.rootElement.getAttribute('data-block-id');
+        const macroId = macro.rootElement.getAttribute('data-macro-id');
         
         log.debug('Re-rendering individual macro', { 
           id, 
           stateId, 
           blockId,
+          macroId,
           hasRoot: !!macro.reactRoot,
           elementExists: !!macro.rootElement
         });
@@ -168,6 +172,7 @@ function reRenderWorkflowMacros(): void {
               macro.reactRoot.render(
                 <WorkflowMacro
                   blockId={blockId}
+                  macroId={macroId}
                   initWorkflowState={currentWorkflowState}
                   workflowStates={workflowStates}
                 />
@@ -532,6 +537,13 @@ function decodeStateId(encoded: string): number {
 }
 
 /**
+ * Generates a unique macro ID
+ */
+function generateMacroId(): string {
+  return Math.random().toString(36).substring(2, 10);
+}
+
+/**
  * Registers the custom React element renderer for the workflow macro.
  */
 function registerWorkflowMacro(): void {
@@ -541,12 +553,13 @@ function registerWorkflowMacro(): void {
   try {
     logseq.App.onMacroRendererSlotted(async ({ slot, payload }) => {
       log.startTimer(`macro-render-${slot}`);
-      const [type, keyword, encodedId] = payload.arguments;
+      const [type, keyword, encodedId, macroId] = payload.arguments;
       
       log.debug('Macro renderer called', { 
         type, 
         keyword, 
-        encodedId, 
+        encodedId,
+        macroId,
         slot,
         uuid: payload.uuid
       });
@@ -620,20 +633,24 @@ function registerWorkflowMacro(): void {
         const id = `workflow-${slot}`;
         const encodedStateId = targetState ? encodeStateId(targetState.id) : encodeStateId(-999);
         
+        // Only include macro ID in data attributes if one was provided
+        const macroIdAttr = macroId ? ` data-macro-id="${macroId}"` : '';
+        
         log.debug('Setting up workflow macro UI slot', { 
           id, 
           keyword, 
           stateId: targetState?.id, 
           encodedStateId,
+          macroId,
           slot
         });
 
-        // Provide a UI slot - now storing the encoded state ID
+        // Provide a UI slot - now making macro ID optional
         logseq.provideUI({
           key: id,
           slot,
           reset: true,
-          template: `<div id="${id}" data-state-id="${encodedStateId}" data-keyword="${keyword}" data-block-id="${payload.uuid}"></div>`,
+          template: `<div id="${id}" data-state-id="${encodedStateId}" data-keyword="${keyword}" data-block-id="${payload.uuid}"${macroIdAttr}></div>`,
         });
 
         // Ensure DOM is available
@@ -646,13 +663,15 @@ function registerWorkflowMacro(): void {
               const reactRoot = ReactDOM.createRoot(rootElement);
               const encodedStateId = rootElement.getAttribute('data-state-id') || encodeStateId(-999);
               const stateId = decodeStateId(encodedStateId);
+              const macroId = rootElement.getAttribute('data-macro-id') || null;
               const currentWorkflowState = findWorkflowStateById(workflowStates, stateId);
 
               if (currentWorkflowState) {
                 log.debug('Rendering workflow macro', { 
                   id, 
                   stateId, 
-                  encodedStateId, 
+                  encodedStateId,
+                  macroId,
                   state: {
                     id: currentWorkflowState.id,
                     keyword: currentWorkflowState.keyword,
@@ -664,6 +683,7 @@ function registerWorkflowMacro(): void {
                 reactRoot.render(
                   <WorkflowMacro
                     blockId={payload.uuid}
+                    macroId={macroId}
                     initWorkflowState={currentWorkflowState}
                     workflowStates={workflowStates}
                   />
@@ -684,6 +704,7 @@ function registerWorkflowMacro(): void {
                 reactRoot.render(
                   <WorkflowMacro
                     blockId={payload.uuid}
+                    macroId={macroId}
                     initWorkflowState={unknownState}
                     workflowStates={workflowStates}
                   />
@@ -754,16 +775,34 @@ async function registerSlashCommands(): Promise<void> {
     // Register a command for each workflow state
     for (const workflow of workflowStates) {
       await logseq.Editor.registerSlashCommand(workflow.keyword, async () => {
-        const block = await logseq.Editor.getCurrentBlock();
-        if (!block) {
-          log.error('No current block found for slash command');
-          return;
+        try {
+          // Get current block to check for existing workflow macros
+          const block = await logseq.Editor.getCurrentBlock();
+          if (!block) {
+            log.error('Current block not found');
+            return;
+          }
+
+          // Check if block already has workflow macros
+          const macroRegex = /\{\{renderer workflow,\s*([^,}]+)(?:,\s*[^,}]+)?(?:,\s*([^,}]+))?\}\}/g;
+          const hasExistingMacros = macroRegex.test(block.content);
+
+          // Only generate a macro ID if there are existing macros
+          const macroId = hasExistingMacros ? generateMacroId() : '';
+          const macroText = macroId 
+            ? `{{renderer workflow, ${workflow.keyword}, ${encodeStateId(workflow.id)}, ${macroId}}}`
+            : `{{renderer workflow, ${workflow.keyword}, ${encodeStateId(workflow.id)}}}`;
+          
+          // Use Logseq's built-in cursor insertion - this should be much safer
+          await logseq.Editor.insertAtEditingCursor(macroText);
+          
+          log.debug('Inserted workflow macro using cursor insertion', { 
+            keyword: workflow.keyword, 
+            macroId: macroId || 'none'
+          });
+        } catch (error) {
+          log.error('Error inserting workflow macro:', error);
         }
-        
-        await logseq.Editor.updateBlock(
-          block.uuid,
-          `{{renderer workflow, ${workflow.keyword}, ${encodeStateId(workflow.id)}}} ${block.content || ''}`.trim()
-        );
       });
     }
 
