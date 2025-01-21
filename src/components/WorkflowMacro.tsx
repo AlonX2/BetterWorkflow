@@ -45,12 +45,13 @@ function encodeStateId(id: number): string {
 
 interface WorkflowMacroProps {
   blockId: string;
+  macroId: string | null;
   initWorkflowState: WorkflowState;
   workflowStates: WorkflowState[];
 }
 
-export const WorkflowMacro: React.FC<WorkflowMacroProps> = ({ blockId, initWorkflowState, workflowStates }) => {
-  log.debug('Initializing WorkflowMacro', { blockId, initWorkflowState });
+export const WorkflowMacro: React.FC<WorkflowMacroProps> = ({ blockId, macroId, initWorkflowState, workflowStates }) => {
+  log.debug('Initializing WorkflowMacro', { blockId, macroId, initWorkflowState });
   const [currentState, setCurrentState] = useState<WorkflowState>(initWorkflowState);
   const [isHovered, setIsHovered] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -101,27 +102,41 @@ export const WorkflowMacro: React.FC<WorkflowMacroProps> = ({ blockId, initWorkf
         }
 
         const content = block.content;
-        // Updated regex to match the new format with encoded ID
-        const macroRegex = /\{\{renderer workflow,\s*([^,}]+)(?:,\s*[^,}]+)?\}\}/;
-        const match = content.match(macroRegex);
-        const textAfterMacro = match ? content.slice(match.index! + match[0].length) : '';
+        // Updated regex to match the new format with optional encoded ID and macro ID - added global flag
+        const macroRegex = new RegExp(`\\{\\{renderer workflow,\\s*([^,}]+)(?:,\\s*[^,}]+)?(?:,\\s*([^,}]+))?\\}\\}`, 'g');
+        const matches = Array.from(content.matchAll(macroRegex));
+        let updatedContent = content;
+        
+        // Find the specific macro instance we want to update
+        for (let i = 0; i < matches.length; i++) {
+          const match = matches[i];
+          const matchMacroId = match[2]?.trim(); // Get the macro ID from the match
+          
+          // If we have a macroId, only update matching macro. If no macroId, update first macro found
+          if (!macroId || matchMacroId === macroId) {
+            const beforeMatch = updatedContent.slice(0, match.index);
+            const afterMatch = updatedContent.slice(match.index! + match[0].length);
+            
+            // Construct new macro text, preserving macro ID if it exists
+            const macroIdPart = macroId ? `, ${macroId}` : '';
+            
+            if (isCheckboxState && parentState) {
+              // If we're in checkbox state, transition back to parent state
+              log.info('Unchecking - returning to parent state', { blockId, parentState, macroId });
+              updatedContent = `${beforeMatch}{{renderer workflow, ${parentState.keyword}, ${encodeStateId(parentState.id)}${macroIdPart}}}${afterMatch}`;
+              setCurrentState(parentState);
+            } else if (currentState.hasCheckbox && currentState.checkboxState) {
+              // If we're in a regular state with checkbox, transition to checkbox state
+              log.info('Checking - transitioning to checkbox state', { blockId, checkboxState: currentState.checkboxState, macroId });
+              updatedContent = `${beforeMatch}{{renderer workflow, ${currentState.checkboxState.keyword}, ${encodeStateId(currentState.checkboxState.id)}${macroIdPart}}}${afterMatch}`;
+              setCurrentState(currentState.checkboxState);
+            }
+            break;
+          }
+        }
 
-        if (isCheckboxState && parentState) {
-          // If we're in checkbox state, transition back to parent state
-          log.info('Unchecking - returning to parent state', { blockId, parentState });
-          await logseq.Editor.updateBlock(
-            blockId,
-            `{{renderer workflow, ${parentState.keyword}, ${encodeStateId(parentState.id)}}}${textAfterMacro}`
-          );
-          setCurrentState(parentState);
-        } else if (currentState.hasCheckbox && currentState.checkboxState) {
-          // If we're in a regular state with checkbox, transition to checkbox state
-          log.info('Checking - transitioning to checkbox state', { blockId, checkboxState: currentState.checkboxState });
-          await logseq.Editor.updateBlock(
-            blockId,
-            `{{renderer workflow, ${currentState.checkboxState.keyword}, ${encodeStateId(currentState.checkboxState.id)}}}${textAfterMacro}`
-          );
-          setCurrentState(currentState.checkboxState);
+        if (updatedContent !== content) {
+          await logseq.Editor.updateBlock(blockId, updatedContent);
         }
       } catch (error) {
         log.error('Failed to update block content for checkbox state', error);
@@ -142,7 +157,8 @@ export const WorkflowMacro: React.FC<WorkflowMacroProps> = ({ blockId, initWorkf
         currentId: currentState.id, 
         nextId: currentState.next.id,
         currentKeyword: currentState.keyword,
-        nextKeyword: currentState.next.keyword
+        nextKeyword: currentState.next.keyword,
+        macroId
       });
 
       // Prevent transitioning to the same state
@@ -160,17 +176,33 @@ export const WorkflowMacro: React.FC<WorkflowMacroProps> = ({ blockId, initWorkf
 
       // Extract content after the workflow macro
       const content = block.content;
-      // Updated regex to match the new format with encoded ID
-      const macroRegex = /\{\{renderer workflow,\s*([^,}]+)(?:,\s*[^,}]+)?\}\}/;
-      const match = content.match(macroRegex);
-      const textAfterMacro = match ? content.slice(match.index! + match[0].length) : '';
-
-      log.info('Updating block content', { blockId, nextState: currentState.next });
-      await logseq.Editor.updateBlock(
-        blockId,
-        `{{renderer workflow, ${currentState.next.keyword}, ${encodeStateId(currentState.next.id)}}}${textAfterMacro}`
-      );
-      setCurrentState(currentState.next);
+      // Updated regex to match the new format with optional encoded ID and macro ID - added global flag
+      const macroRegex = new RegExp(`\\{\\{renderer workflow,\\s*([^,}]+)(?:,\\s*[^,}]+)?(?:,\\s*([^,}]+))?\\}\\}`, 'g');
+      const matches = Array.from(content.matchAll(macroRegex));
+      let updatedContent = content;
+      
+      // Find the specific macro instance we want to update
+      for (let i = 0; i < matches.length; i++) {
+        const match = matches[i];
+        const matchMacroId = match[2]?.trim(); // Get the macro ID from the match
+        
+        // If we have a macroId, only update matching macro. If no macroId, update first macro found
+        if (!macroId || matchMacroId === macroId) {
+          const beforeMatch = updatedContent.slice(0, match.index);
+          const afterMatch = updatedContent.slice(match.index! + match[0].length);
+          
+          // Construct new macro text, preserving macro ID if it exists
+          const macroIdPart = macroId ? `, ${macroId}` : '';
+          updatedContent = `${beforeMatch}{{renderer workflow, ${currentState.next.keyword}, ${encodeStateId(currentState.next.id)}${macroIdPart}}}${afterMatch}`;
+          break;
+        }
+      }
+      
+      if (updatedContent !== content) {
+        log.info('Updating block content', { blockId, nextState: currentState.next, macroId });
+        await logseq.Editor.updateBlock(blockId, updatedContent);
+        setCurrentState(currentState.next);
+      }
     } catch (error) {
       log.error('Failed to update block content', error);
     } finally {
