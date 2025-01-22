@@ -774,7 +774,7 @@ async function registerSlashCommands(): Promise<void> {
   try {
     // Register a command for each workflow state
     for (const workflow of workflowStates) {
-      await logseq.Editor.registerSlashCommand(workflow.keyword, async () => {
+      await logseq.Editor.registerSlashCommand(`${workflow.keyword} Workflow`, async () => {
         try {
           // Get current block to check for existing workflow macros
           const block = await logseq.Editor.getCurrentBlock();
