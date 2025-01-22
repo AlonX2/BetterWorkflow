@@ -1,3 +1,10 @@
+## [1.0.8](https://github.com/AlonX2/BetterWorkflow/compare/v1.0.7...v1.0.8) (2025-01-22)
+
+
+### Bug Fixes
+
+* Suffix to command names to no longer override the default commands. ([7fb672b](https://github.com/AlonX2/BetterWorkflow/commit/7fb672b86e877003b840647b8320f7815e373779))
+
 ## [1.0.7](https://github.com/AlonX2/BetterWorkflow/compare/v1.0.6...v1.0.7) (2025-01-21)
 
 
