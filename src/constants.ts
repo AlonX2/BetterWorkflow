@@ -31,7 +31,7 @@ export const DEFAULT_STATES: WorkflowState[] = [
   // TODO -> DOING -> DONE (checkbox)
   {
     id: generateDefaultId(1),
-    keyword: "TASK",
+    keyword: "TODO",
     color: prettyColors[2], // Deep navy
     hasCheckbox: true,
     checkboxState: {
